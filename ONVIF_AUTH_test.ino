@@ -13,12 +13,10 @@ IPAddress server(192, 168, 11, 42);
 // that you want to connect to (port 80 is default for HTTP):
 EthernetClient client;
 
-//byte nonce[20] = {0x12,0xd3,0x51,0x54,0x03,0xfd,0x0d,0x76,0x99,0x30,0x1a,0xab,0x3b,0x91,0xae,0xe3,0xd0,0x6f,0x99,0x62};
-//byte nonce[20] = {0x83,0xca,0x62,0x39,0xde,0xdd,0xd9,0x68,0x75,0xee,0xa6,0x8a,0x36,0xf8,0x83,0x9c,0xf8,0x98,0x53,0xd9};
-byte* nonce;
-char* createTime;
-char* username = "admin";
-char* password;
+byte *nonce;
+char *createTime;
+char *username = "admin";
+char *password;
 
 char *base64_digest;
 char *base64_nonce;
@@ -29,18 +27,18 @@ unsigned long beginMicros, endMicros;
 unsigned long byteCount = 0;
 bool printWebData = true;  // set to false for better speed measurement
 
-char* httpHeaderStatic = "POST /onvif/device_service HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
-char* onvif_header = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
-char* onvif_security1 = "<s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>";
-char* onvif_security2 = "</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">";
-char* onvif_security3 = "</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">";
-char* onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
-char* onvif_security5 = "</Created></UsernameToken></Security></s:Header>";
-char* onvif_body = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
-char* onvif_command_getCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char* onvif_command_getSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char* onvif_command_GetNetworkInterfaces = "<GetNetworkInterfaces xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char* onvif_closer = "</s:Body></s:Envelope>";
+const char httpHeaderStatic[] PROGMEM = "POST /onvif/device_service HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
+const char onvif_header[] PROGMEM = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
+char *onvif_security1 = "<s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>";
+char *onvif_security2 = "</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">";
+char *onvif_security3 = "</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">";
+char *onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
+char *onvif_security5 = "</Created></UsernameToken></Security></s:Header>";
+const char onvif_body[] PROGMEM = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
+char *onvif_command_getCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+char *onvif_command_getSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+char *onvif_command_GetNetworkInterfaces = "<GetNetworkInterfaces xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+const char onvif_closer[] PROGMEM = "</s:Body></s:Envelope>";
 
 void setup() {
   Serial.begin(115200);
@@ -50,22 +48,17 @@ void setup() {
   // disable SD SPI
   pinMode(4, OUTPUT);
   digitalWrite(4, HIGH);
+
   
+  base64_digest = malloc(encode_base64_length(20));
+  base64_nonce = malloc(encode_base64_length(20));
   createTime = "2018-11-07T18:15:45.000Z";
   password = "Supervisor";
   nonce = getNonce();
   hash = getDigest(nonce,password,createTime);
-  printHash(hash);
-  delay(500);
-  base64_digest = malloc(encode_base64_length(20));
-  base64_nonce = malloc(encode_base64_length(20));
+  
   encode_base64(hash, 20, base64_digest);
-  Serial.println(strlen("H3x1jXduDemtztPJ99723j5dcJ4="));
-  Serial.println(strlen(base64_digest));
-  Serial.println((char *) base64_digest); 
-  base64_nonce[encode_base64_length(20)];
   encode_base64(nonce, 20, base64_nonce);
-  Serial.println((char *) base64_nonce); 
   
   Serial.println(F("Starting ethernet..."));
   if (!Ethernet.begin(mac)) Serial.println(F("failed"));
@@ -142,7 +135,7 @@ void loop() {
   }
 }
 
-void printHash(uint8_t* hash) {
+void printHash(uint8_t *hash) {
   int i;
   for (i=0; i<20; i++) {
     Serial.print("0123456789abcdef"[hash[i]>>4]);
@@ -159,21 +152,21 @@ void printNonce(byte nonce[]) {
   Serial.println();
 }
 
-uint8_t* getDigest(byte nonce_t[],char* password,char* creationTime){
+uint8_t *getDigest(byte nonce_t[],char *password,char *created){
   char chars[20];
+  char *conc;
   memcpy(chars, nonce_t,20); 
   chars[20] = '\0';
   Sha1.init();
-  static char* conc;
-  conc = malloc(strlen(chars)+strlen(password)+strlen(creationTime));
+  conc = malloc(strlen(chars)+strlen(password)+strlen(created));
   strcpy(conc,chars);
-  strcat(conc,creationTime);
+  strcat(conc,created);
   strcat(conc,password);
   Sha1.print(conc);
   return Sha1.result();
 }
 
-byte* getNonce() {
+byte *getNonce() {
   byte random_num;
   static byte random_arr[20];
   int i = 0;
