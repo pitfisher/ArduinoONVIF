@@ -35,18 +35,16 @@ void setup() {
     Serial.print("connected to ");
     Serial.println(client.remoteIP());
     // Make a HTTP request:
-    client.println("POST /onvif/device_service HTTP/1.1");
-    client.println("Host: 192.168.11.22");
-    client.println("User-Agent: Arduino/1.0");
-    client.println("Accept: */*");
-    client.println("Content-Length: 256");
-    client.println("Content-Type: application/x-www-form-urlencoded");
-    client.println();
+    char* httpHeaderStatic = "POST /onvif/device_service HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
     char* onvif_header = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
-    client.print(onvif_header);//<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>");//</s:Body>");//</s:Envelope>");
-    char* onvif_command = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-    client.print(onvif_command);
+    char* onvif_command_getCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
+    char* onvif_command_getSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
     char* onvif_closer = "</s:Body></s:Envelope>";
+    client.print(httpHeaderStatic);
+    client.println(strlen(onvif_header)+strlen(onvif_command_getSystemDateAndTime)+strlen(onvif_closer)); //calculate and send Content-Length of request
+    client.println();
+    client.print(onvif_header);
+    client.print(onvif_command_getSystemDateAndTime);
     client.print(onvif_closer);
   } else {
     // if you didn't get a connection to the server:
