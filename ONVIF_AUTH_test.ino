@@ -3,6 +3,7 @@
 #include <string.h>
 #include "sha1.h"
 #include "base64.hpp"
+#include "xml.h"
 
 byte mac[] = {  0x00, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
@@ -27,19 +28,22 @@ unsigned long beginMicros, endMicros;
 unsigned long byteCount = 0;
 bool printWebData = true;  // set to false for better speed measurement
 
-const char httpHeaderStatic[] PROGMEM = "POST /onvif/device_service HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
-const char onvif_header[] PROGMEM = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
+char *httpHeaderStatic = "POST /onvif/PTZ HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
+char *onvif_header = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
 char *onvif_security1 = "<s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>";
 char *onvif_security2 = "</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">";
 char *onvif_security3 = "</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">";
 char *onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
 char *onvif_security5 = "</Created></UsernameToken></Security></s:Header>";
-const char onvif_body[] PROGMEM = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
+char *onvif_body = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
 char *onvif_command_getCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
 char *onvif_command_getSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
 char *onvif_command_GetNetworkInterfaces = "<GetNetworkInterfaces xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-const char onvif_closer[] PROGMEM = "</s:Body></s:Envelope>";
-
+char *onvif_command_GetProfiles = "<GetProfiles xmlns=\"http://www.onvif.org/ver10/media/wsdl\"/>";
+char *onvif_command_GetServices = "<GetServices xmlns=\"http://www.onvif.org/ver10/media/wsdl\"><IncludeCapability>false</IncludeCapability></GetServices>";
+char *onvif_command_ContinuousMove = "<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>Profile_1</ProfileToken><Velocity><PanTilt x=\"-0.01\" y=\"0\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>";
+char *onvif_closer = "</s:Body></s:Envelope>";
+char *onvif_command;
 void setup() {
   Serial.begin(115200);
   
@@ -49,6 +53,7 @@ void setup() {
   pinMode(4, OUTPUT);
   digitalWrite(4, HIGH);
 
+  onvif_command = onvif_command_ContinuousMove;
   
   base64_digest = malloc(encode_base64_length(20));
   base64_nonce = malloc(encode_base64_length(20));
@@ -77,7 +82,7 @@ void setup() {
     // Make a HTTP request:
     Serial.println(strlen(base64_digest));
     client.print(httpHeaderStatic);
-    client.println(strlen(onvif_header) + strlen(onvif_security1)+strlen("admin")+strlen(onvif_security2)+strlen(base64_digest)+strlen(onvif_security3)+strlen(base64_nonce)+strlen(onvif_security4)+strlen(createTime)+strlen(onvif_security5)+strlen(onvif_body)+strlen(onvif_command_GetNetworkInterfaces) + strlen(onvif_closer)); //calculate and send Content-Length of request
+    client.println(strlen(onvif_header) + strlen(onvif_security1)+strlen("admin")+strlen(onvif_security2)+strlen(base64_digest)+strlen(onvif_security3)+strlen(base64_nonce)+strlen(onvif_security4)+strlen(createTime)+strlen(onvif_security5)+strlen(onvif_body)+strlen(onvif_command) + strlen(onvif_closer)); //calculate and send Content-Length of request
     client.println();
     client.print(onvif_header);
     client.print(onvif_security1);
@@ -90,7 +95,7 @@ void setup() {
     client.print(createTime);
     client.print(onvif_security5);
     client.print(onvif_body);
-    client.print(onvif_command_GetNetworkInterfaces);
+    client.print(onvif_command);
     client.print(onvif_closer);
   } else {
     // if you didn't get a connection to the server:
