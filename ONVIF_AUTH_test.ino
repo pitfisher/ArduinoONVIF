@@ -3,10 +3,31 @@
 #include <string.h>
 #include "sha1.h"
 #include "base64.hpp"
-#include "xml.h"
+//#include "xml.h"
 
 byte mac[] = {  0x00, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
+struct soap_Header {
+  char *soap_HeaderOpen = "<s:Header>";
+  char *soap_HeaderSecurity = "";
+  char *soap_HeaderClose = "</s:Header>";
+};
+
+struct soap_Body {
+
+};
+
+char *serialize_Header (soap_Header *soap_Header){
+  char *soap_HeaderString;
+  return;
+}
+struct soap_Envelope {
+  soap_Header *soap_Header;
+  soap_Body *soap_Body;
+};
+int getSoapHeaderLength(){
+  return sizeof(soap_Header);
+}
 IPAddress server(192, 168, 11, 22);
 
 // Initialize the Ethernet client library
@@ -24,21 +45,22 @@ unsigned long byteCount = 0;
 bool printWebData = true;  // set to false for better speed measurement
 
 char *httpHeaderStatic = "POST /onvif/Media HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
-char *onvif_header = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
-char *onvif_openHeader = "<s:Header>";
-char *onvif_closeHeader = "</s:Header>";
-char *onvif_body = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
+char *soap_EnvelopeOpen = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
+
+char *soap_BodyOpen = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
 char *onvif_command_GetCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
 char *onvif_command_GetSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
 char *onvif_command_GetNetworkInterfaces = "<GetNetworkInterfaces xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
 char *onvif_command_GetProfiles = "<GetProfiles xmlns=\"http://www.onvif.org/ver10/media/wsdl\"/>";
 char *onvif_command_GetServices = "<GetServices xmlns=\"http://www.onvif.org/ver10/media/wsdl\"><IncludeCapability>false</IncludeCapability></GetServices>";
 char *onvif_command_ContinuousMove = "<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>Profile_1</ProfileToken><Velocity><PanTilt x=\"0\" y=\"0\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>";
-char *onvif_closer = "</s:Body></s:Envelope>";
+char *soap_BodyClose = "</s:Body>";
+char *soap_EnvelopeClose = "</s:Envelope>";
 char *onvif_command;
 
+
 void setup() {
-  static char *securityHeader;
+  static char *soap_HeaderSecurity;
   
   Serial.begin(115200);
   
@@ -52,7 +74,7 @@ void setup() {
   password = "Supervisor";
   nonce = getNonce();
   
-  securityHeader = calculateHeaderSecurity(username,password,createTime,nonce);
+  soap_HeaderSecurity = calculateHeaderSecurity(username,password,createTime,nonce);
     
   onvif_command = onvif_command_GetProfiles;
   
@@ -71,24 +93,16 @@ void setup() {
     Serial.println(client.remoteIP());
     // Make a HTTP request:
     client.print(httpHeaderStatic);
-    client.println(strlen(onvif_header)+strlen(onvif_openHeader)+strlen(onvif_closeHeader)+strlen(securityHeader)+strlen(onvif_body)+strlen(onvif_command) + strlen(onvif_closer)); //calculate and send Content-Length of request
+    client.println(strlen(soap_EnvelopeOpen)+getSoapHeaderLength()+strlen(soap_BodyOpen)+strlen(onvif_command) + strlen(soap_BodyClose)+strlen(soap_EnvelopeClose)); //calculate and send Content-Length of request
     client.println();
-    client.print(onvif_header);
-    client.print(onvif_openHeader);
-    client.print(securityHeader);
-    client.print(onvif_closeHeader);
-//    client.print(onvif_security1);
-//    client.print(username);
-//    client.print(onvif_security2);
-//    client.print(base64_digest);
-//    client.print(onvif_security3);
-//    client.print(base64_nonce);
-//    client.print(onvif_security4);
-//    client.print(createTime);
-//    client.print(onvif_security5);
-    client.print(onvif_body);
+    client.print(soap_EnvelopeOpen);
+    client.print(soap_HeaderOpen);
+    client.print(soap_HeaderSecurity);
+    client.print(soap_HeaderClose);
+    client.print(soap_BodyOpen);
     client.print(onvif_command);
-    client.print(onvif_closer);
+    client.print(soap_BodyClose);
+    client.print(soap_EnvelopeClose);
   } else {
     // if you didn't get a connection to the server:
     Serial.println("connection failed");
