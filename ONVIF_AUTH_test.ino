@@ -1,78 +1,50 @@
+#include "onvif.h"
 #include <SPI.h>
 #include <Ethernet.h>
 #include <string.h>
-#include "sha1.h"
-#include "base64.hpp"
 //#include "xml.h"
 
 byte mac[] = {  0x00, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
-struct soap_Header {
-  char *soap_HeaderOpen;
-  char *soap_HeaderSecurity;
-  char *soap_HeaderClose;
-};
-
-struct soap_Body {
-
-};
-
-int getSoapHeaderLength(struct soap_Header *soap_Header) {
-  return strlen(soap_Header->soap_HeaderOpen) + strlen(soap_Header->soap_HeaderSecurity) + strlen(soap_Header->soap_HeaderClose);
-}
-
-char *serialize_Header (struct soap_Header *soap_Header) {
-  static char *soap_HeaderWhole;
-  soap_HeaderWhole = (char*)malloc(2); //dirty hack, cant get it working properly
-  strcpy(soap_HeaderWhole, soap_Header->soap_HeaderOpen);
-  strcat(soap_HeaderWhole, soap_Header->soap_HeaderSecurity);
-  strcat(soap_HeaderWhole, soap_Header->soap_HeaderClose);
-  return soap_HeaderWhole;
-}
-struct soap_Envelope {
-  soap_Header *soap_Header;
-  soap_Body *soap_Body;
-};
-
-IPAddress server(192, 168, 11, 22);
+IPAddress server(192, 168, 11, 42);
 
 // Initialize the Ethernet client library
 // with the IP address and port of the server
 // that you want to connect to (port 80 is default for HTTP):
-EthernetClient client;
+
+int sensorPan = A2;     // канал вправо/влево 
+int sensorTilt = A1;    // канал вверх/вниз 
+//int sensorFocus = A2;   // канал фокус
+
+int xVal = 0;           // переменная для хранения значения с потенциометра вправо/влево
+int yVal = 0;           // переменная для хранения значения с потенциометра вниз/вверх
+int focus = 0;          // переменная для хранения значения с потенциометра фокуса камеры
 
 byte *nonce;
 char *createTime;
-char *username = "admin";
+char *username;
 char *password;
 
 unsigned long beginMicros, endMicros;
 unsigned long byteCount = 0;
 bool printWebData = true;  // set to false for better speed measurement
 
-char *httpHeaderStatic = "POST /onvif/Media HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
-char *soap_EnvelopeOpen = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
+// static char *soap_HeaderSecurity;
 
-char *soap_BodyOpen = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">";
-char *onvif_command_GetCapabilities = "<GetCapabilities xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char *onvif_command_GetSystemDateAndTime = "<GetSystemDateAndTime xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char *onvif_command_GetNetworkInterfaces = "<GetNetworkInterfaces xmlns=\"http://www.onvif.org/ver10/device/wsdl\"/>";
-char *onvif_command_GetProfiles = "<GetProfiles xmlns=\"http://www.onvif.org/ver10/media/wsdl\"/>";
-char *onvif_command_GetServices = "<GetServices xmlns=\"http://www.onvif.org/ver10/media/wsdl\"><IncludeCapability>false</IncludeCapability></GetServices>";
-char *onvif_command_ContinuousMove = "<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>Profile_1</ProfileToken><Velocity><PanTilt x=\"0\" y=\"0\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>";
-char *soap_BodyClose = "</s:Body>";
-char *soap_EnvelopeClose = "</s:Envelope>";
-char *onvif_command;
+struct soap_Header soap_Header =  {
+  .soap_HeaderOpen = "<s:Header>",
+  .soap_HeaderSecurity = "",
+  .soap_HeaderClose = "</s:Header>"
+};
 
+struct soap_Body soap_Body =  {
+  .soap_BodyOpen = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">",
+  .soap_Command = NULL,
+  .soap_BodyClose = "</s:Body>"
+};
+// int i = 0;
 
 void setup() {
-  static char *soap_HeaderSecurity;
-  
-  struct soap_Header soap_Header =  {
-    .soap_HeaderOpen = "<s:Header>",
-    .soap_HeaderSecurity = "",
-    .soap_HeaderClose = "</s:Header>"
-  };
 
   Serial.begin(115200);
 
@@ -83,82 +55,100 @@ void setup() {
   digitalWrite(4, HIGH);
 
   createTime = "2018-11-07T18:15:45.000Z";
+  username = "admin";
   password = "Supervisor";
   nonce = getNonce();
   
+  // if(authorization_needed) {
   soap_Header.soap_HeaderSecurity = (char*)malloc(2); //not sure how it works again; attempt to allocate proper amount of memory makes arduino hang
-  
-  strcpy(soap_Header.soap_HeaderSecurity,calculateHeaderSecurity(username, password, createTime, nonce));;
+  strcpy(soap_Header.soap_HeaderSecurity, calculateHeaderSecurity(username, password, createTime, nonce));
 
- onvif_command = onvif_command_GetProfiles;
+  // allocating memory for ONVIF command text and putting it in Body structre
+  // probably should pack all commands in some kind of dictionary
+  // soap_Body.soap_Command = (char *)malloc(onvif_command_GetSystemDateAndTime);
+  // strcpy(soap_Body.soap_Command, onvif_command_GetSystemDateAndTime); 
 
+  //standard Arduino network code goes here
   Serial.println(F("Starting ethernet..."));
   if (!Ethernet.begin(mac)) Serial.println(F("failed"));
   else {
     Serial.println(Ethernet.localIP());
     Serial.println(Ethernet.gatewayIP());
   }
-  Serial.print("connecting to ");
-  Serial.print(server);
-  Serial.println("...");
-  // if you get a connection, report back via serial:
-  if (client.connect(server, 80)) {
-    Serial.print("connected to ");
-    Serial.println(client.remoteIP());
-    // Make a HTTP request:
-    client.print(httpHeaderStatic);
-    client.println(strlen(soap_EnvelopeOpen) + getSoapHeaderLength(&soap_Header) + strlen(soap_BodyOpen) + strlen(onvif_command) + strlen(soap_BodyClose) + strlen(soap_EnvelopeClose)); //calculate and send Content-Length of request
-    client.println();
-    client.print(soap_EnvelopeOpen);
-    client.print(serialize_Header(&soap_Header));
-    //    client.print(soap_HeaderOpen);
-    //    client.print(soap_HeaderSecurity);
-    //    client.print(soap_HeaderClose);
-    client.print(soap_BodyOpen);
-    client.print(onvif_command);
-    client.print(soap_BodyClose);
-    client.print(soap_EnvelopeClose);
-  } else {
-    // if you didn't get a connection to the server:
-    Serial.println("connection failed");
-  }
-  beginMicros = micros();
 }
 
 void loop() {
-  int len = client.available();
-  if (len > 0) {
-    byte buffer[80];
-    if (len > 80) len = 80;
-    client.read(buffer, len);
-    if (printWebData) {
-      Serial.write(buffer, len); // show in the serial monitor (slows some boards)
-    }
-    byteCount = byteCount + len;
-  }
 
+  Serial.println("bloop");
+  xVal = analogRead(sensorPan);     // считывание значения потенциометра вправо/влево в соответствующую переменную
+  yVal = analogRead(sensorTilt);    // считывание значения потенциометра вниз/вверх в соответствующую переменную
+//  focus = analogRead(sensorFocus);  // считывание значения потенциометра фокуса камеры в соответствующую переменную
+  Serial.println(yVal);
+  Serial.println(xVal);
+ if (xVal > 600)  
+ { 
+    onvifContinuousMove(server, &soap_Header, &soap_Body, "Profile_1", "0.5", "0");      // вызывается функция отправки байта
+    while (xVal > 600) 
+    {
+       xVal = analogRead(sensorPan);   
+    }
+ }
+ Serial.println("1");
+ if (xVal < 450)
+ {
+    onvifContinuousMove(server, &soap_Header, &soap_Body, "Profile_1", "-0.5", "0");      // вызывается функция отправки байта  
+    while (xVal < 450) 
+    {
+       xVal = analogRead(sensorPan);   
+    }
+ }
+ Serial.println("2");
+ if (yVal > 600)
+ {
+    onvifContinuousMove(server, &soap_Header, &soap_Body, "Profile_1", "0", "0.5");      // вызывается функция отправки байта
+    while (yVal > 600) 
+    {
+       yVal = analogRead(sensorTilt);   
+    }
+ } 
+ Serial.println("3");
+// newSerial.println("3");
+ if (yVal < 450)
+ {
+    onvifContinuousMove(server, &soap_Header, &soap_Body, "Profile_1", "0", "-0.5");      // вызывается функция отправки байта  
+    while (yVal < 450) 
+    {
+       yVal = analogRead(sensorTilt);   
+    }
+ }  
+  Serial.print("call of PTZ stop at ");
+  Serial.println(millis());
+  onvifContinuousMove(server, &soap_Header, &soap_Body, "Profile_1", "0", "0");
+  Serial.print("PTZ stopped at ");
+  Serial.println(millis());
+  // while(1)delay(1);
+  
   // if the server's disconnected, stop the client:
-  if (!client.connected()) {
-    endMicros = micros();
-    Serial.println();
-    Serial.println("disconnecting.");
-    client.stop();
-    Serial.print("Received ");
-    Serial.print(byteCount);
-    Serial.print(" bytes in ");
-    float seconds = (float)(endMicros - beginMicros) / 1000000.0;
-    Serial.print(seconds, 4);
-    float rate = (float)byteCount / seconds / 1000.0;
-    Serial.print(", rate = ");
-    Serial.print(rate);
-    Serial.print(" kbytes/second");
-    Serial.println();
-
-    // do nothing forevermore:
-    while (true) {
-      delay(1);
-    }
-  }
+  //  if (!client.connected()) {
+  //    endMicros = micros();
+  //    Serial.println();
+  //    Serial.println("disconnecting.");
+  //    client.stop();
+  //    Serial.print("Received ");
+  //    Serial.print(byteCount);
+  //    Serial.print(" bytes in ");
+  //    float seconds = (float)(endMicros - beginMicros) / 1000000.0;
+  //    Serial.print(seconds, 4);
+  //    float rate = (float)byteCount / seconds / 1000.0;
+  //    Serial.print(", rate = ");
+  //    Serial.print(rate);
+  //    Serial.print(" kbytes/second");
+  //    Serial.println();
+  ////     do nothing forevermore:
+  //    while (true) {
+  //      delay(1);
+  //    }
+  //  }
 }
 
 void printHash(uint8_t *hash) {
@@ -178,20 +168,6 @@ void printNonce(byte nonce[]) {
   Serial.println();
 }
 
-uint8_t *getDigest(byte nonce_t[], char *password, char *created) {
-  char chars[20];
-  char *conc;
-  memcpy(chars, nonce_t, 20);
-  chars[20] = '\0';
-  Sha1.init();
-  conc = malloc(strlen(chars) + strlen(password) + strlen(created));
-  strcpy(conc, chars);
-  strcat(conc, created);
-  strcat(conc, password);
-  Sha1.print(conc);
-  return Sha1.result();
-}
-
 byte *getNonce() {
   byte random_num;
   static byte random_arr[20];
@@ -201,37 +177,4 @@ byte *getNonce() {
     random_arr[i] = random_num;
   }
   return random_arr;
-}
-
-char *calculateHeaderSecurity(char *username, char *password, char *createTime, byte nonce_l[]) {
-  static char* securityHeader;
-  char *base64_digest;
-  char *base64_nonce;
-
-  static uint8_t *hash;
-
-  char *onvif_security1 = "<Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>";
-  char *onvif_security2 = "</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">";
-  char *onvif_security3 = "</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">";
-  char *onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
-  char *onvif_security5 = "</Created></UsernameToken></Security>";
-
-  base64_digest = malloc(encode_base64_length(20));
-  base64_nonce = malloc(encode_base64_length(20));
-  hash = getDigest(nonce_l, password, createTime);
-
-  encode_base64(hash, 20, base64_digest);
-  encode_base64(nonce, 20, base64_nonce);
-
-  securityHeader = malloc(strlen(onvif_security1) + strlen(username) + strlen(onvif_security2) + strlen(base64_digest) + strlen(onvif_security3) + strlen(base64_nonce) + strlen(onvif_security4) + strlen(createTime) + strlen(onvif_security5));
-  strcpy(securityHeader, onvif_security1);
-  strcat(securityHeader, username);
-  strcat(securityHeader, onvif_security2);
-  strcat(securityHeader, base64_digest);
-  strcat(securityHeader, onvif_security3);
-  strcat(securityHeader, base64_nonce);
-  strcat(securityHeader, onvif_security4);
-  strcat(securityHeader, createTime);
-  strcat(securityHeader, onvif_security5);
-  return securityHeader;
 }
