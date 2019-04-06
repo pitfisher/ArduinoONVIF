@@ -46,7 +46,7 @@ uint8_t *getDigest(byte nonce_t[], char *password, char *created) {
   memcpy(chars, nonce_t, 20);
   chars[20] = '\0';
   Sha1.init();
-  conc = malloc(strlen(chars) + strlen(password) + strlen(created));
+  conc = (char*)malloc(strlen(chars) + strlen(password) + strlen(created));
   strcpy(conc, chars);
   strcat(conc, created);
   strcat(conc, password);
@@ -56,8 +56,8 @@ uint8_t *getDigest(byte nonce_t[], char *password, char *created) {
 
 char *calculateHeaderSecurity(char *username, char *password, char *createTime, byte nonce_l[]) {
   static char* securityHeader;
-  char *base64_digest;
-  char *base64_nonce;
+  unsigned char *base64_digest;
+  unsigned char *base64_nonce;
 
   static uint8_t *hash;
 
@@ -67,14 +67,14 @@ char *calculateHeaderSecurity(char *username, char *password, char *createTime, 
   char *onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
   char *onvif_security5 = "</Created></UsernameToken></Security>";
 
-  base64_digest = malloc(encode_base64_length(20));
-  base64_nonce = malloc(encode_base64_length(20));
+  base64_digest = (unsigned char*)malloc(encode_base64_length(20));
+  base64_nonce = (unsigned char*)malloc(encode_base64_length(20));
   hash = getDigest(nonce_l, password, createTime);
 
   encode_base64(hash, 20, base64_digest);
   encode_base64(nonce_l, 20, base64_nonce);
 
-  securityHeader = malloc(strlen(onvif_security1) + strlen(username) + strlen(onvif_security2) + strlen(base64_digest) + strlen(onvif_security3) + strlen(base64_nonce) + strlen(onvif_security4) + strlen(createTime) + strlen(onvif_security5));
+  securityHeader = (char*)malloc(strlen(onvif_security1) + strlen(username) + strlen(onvif_security2) + strlen(base64_digest) + strlen(onvif_security3) + strlen(base64_nonce) + strlen(onvif_security4) + strlen(createTime) + strlen(onvif_security5));
   strcpy(securityHeader, onvif_security1);
   strcat(securityHeader, username);
   strcat(securityHeader, onvif_security2);

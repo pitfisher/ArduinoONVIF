@@ -21,7 +21,7 @@ struct soap_Header {
 
 struct soap_Body {
   char *soap_BodyOpen;
-  void *soap_Command;
+  char *soap_Command;
   char *soap_BodyClose;
 };
 
