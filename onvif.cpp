@@ -1,6 +1,7 @@
 // #include "Arduino.h"
 #include <Ethernet.h>
 #include "onvif.h"
+#include <time.h>
 #include "sha1.h"
 #include "base64.hpp"
 
