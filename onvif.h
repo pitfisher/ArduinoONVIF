@@ -1,7 +1,7 @@
 #ifndef ONVIF_H_INCLUDED
 #define ONVIF_H_INCLUDED
 
-#include <Ethernet.h> //this must not be here
+#include <NTPClient.h>
 
 char extern *onvif_command_GetCapabilities;
 char extern *onvif_command_GetSystemDateAndTime;
@@ -44,6 +44,9 @@ char *calculateHeaderSecurity(char *username, char *password, char *createTime, 
 
 //this function must be rewritten to exclude usage of Ethernet client
 void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body, char *ProfileToken, char *velocity_x, char *velocity_y);
+
+char* getISOFormattedTime(NTPClient* timeClient);
+
 // char* compose_SOAP (struct soap_Header *soap_Header, struct soap_Body *soap_Body) {
 // 	// if(authorization_needed) {
 // 	soap_Header.soap_HeaderSecurity = (char*)malloc(2); //not sure how it works again; attempt to allocate proper amount of memory makes arduino hang

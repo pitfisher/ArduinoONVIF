@@ -1,4 +1,5 @@
-#include "Arduino.h"
+// #include "Arduino.h"
+#include <Ethernet.h>
 #include "onvif.h"
 #include "sha1.h"
 #include "base64.hpp"
@@ -12,6 +13,18 @@ char *onvif_command_ContinuousMove = "<ContinuousMove xmlns=\"http://www.onvif.o
 char *httpHeaderStatic = "POST /onvif/PTZ HTTP/1.1\r\nUser-Agent: Arduino/1.0\r\nAccept: */*\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ";
 char *soap_EnvelopeOpen = "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\">";
 char *soap_EnvelopeClose = "</s:Envelope>";
+
+struct soap_Header soap_Header =  {
+    .soap_HeaderOpen = "<s:Header>",
+    .soap_HeaderSecurity = "",
+    .soap_HeaderClose = "</s:Header>"
+};
+
+struct soap_Body soap_Body =  {
+    .soap_BodyOpen = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">",
+    .soap_Command = NULL,
+    .soap_BodyClose = "</s:Body>"
+};
 
 int getSoapHeaderLength(struct soap_Header *soap_Header) {
   return strlen(soap_Header->soap_HeaderOpen) + strlen(soap_Header->soap_HeaderSecurity) + strlen(soap_Header->soap_HeaderClose);
@@ -151,4 +164,23 @@ void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, stru
   //Serial.println("Done move");
   // free(soap_Body.soap_Command);
   Serial.println(millis());
+}
+
+char* getISOFormattedTime(NTPClient* timeClient) {
+  // AVR implementation of localtime() uses midn. Jan 1 2000 as epoch 
+  // so UNIX_OFFSET has to be applied to time returned by getEpochTime()
+  // More info here: https://www.nongnu.org/avr-libc/user-manual/group__avr__time.html
+  // https://forum.arduino.cc/index.php?topic=567637.0
+  time_t rawtime = timeClient->getEpochTime() - UNIX_OFFSET;
+  struct tm * ti;
+  static char buf[] = "0000-00-00T00:00:00Z";
+  ti = localtime (&rawtime);
+  Serial.println(timeClient->getEpochTime());
+  if (strftime(buf, sizeof buf, "%FT%TZ", ti)) {
+    // Serial.print("Succsessfully formatted: ");
+    // Serial.println(buf);
+  } else {
+    Serial.println("strftime failed");
+  }
+  return buf;
 }

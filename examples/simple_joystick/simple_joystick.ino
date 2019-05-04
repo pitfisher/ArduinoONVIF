@@ -1,16 +1,10 @@
 #include "onvif.h"
 #include <SPI.h>
 #include <Ethernet.h>
-#include <string.h>
-//#include "xml.h"
 
 byte mac[] = {  0x00, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
 
-IPAddress server(192, 168, 11, 42);
-
-// Initialize the Ethernet client library
-// with the IP address and port of the server
-// that you want to connect to (port 80 is default for HTTP):
+IPAddress server(192, 168, 15, 42);
 
 int sensorPan = A2;     // канал вправо/влево
 int sensorTilt = A1;    // канал вверх/вниз
@@ -27,58 +21,58 @@ char *password;
 
 unsigned long beginMicros, endMicros;
 unsigned long byteCount = 0;
-bool printWebData = true;  // set to false for better speed measurement
+// bool printWebData = true;  // set to false for better speed measurement
+
+unsigned int localPort = 8888;       // local port to listen for UDP packets
+
+const char timeServer[] = "time.google.com";
+// A UDP instance to let us send and receive packets over UDP
+EthernetUDP Udp;
+NTPClient timeClient(Udp, timeServer);
 
 // static char *soap_HeaderSecurity;
+extern struct soap_Header soap_Header;
+extern struct soap_Body soap_Body;
 
-struct soap_Header soap_Header =  {
-    .soap_HeaderOpen = "<s:Header>",
-    .soap_HeaderSecurity = "",
-    .soap_HeaderClose = "</s:Header>"
-};
-
-struct soap_Body soap_Body =  {
-    .soap_BodyOpen = "<s:Body xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">",
-    .soap_Command = NULL,
-    .soap_BodyClose = "</s:Body>"
-};
-// int i = 0;
 
 void setup() {
-
     Serial.begin(115200);
-
     randomSeed(analogRead(0));
-
+    // You can use Ethernet.init(pin) to configure the CS pin
+    // Ethernet.init(10);  // Most Arduino shields
     // disable SD SPI
     pinMode(4, OUTPUT);
     digitalWrite(4, HIGH);
 
-    createTime = "2018-11-07T18:15:45.000Z";
-    username = "admin";
-    password = "Supervisor";
-    nonce = getNonce();
-
-    // if(authorization_needed) {
-    soap_Header.soap_HeaderSecurity = (char*)malloc(2); //not sure how it works again; attempt to allocate proper amount of memory makes arduino hang
-    strcpy(soap_Header.soap_HeaderSecurity, calculateHeaderSecurity(username, password, createTime, nonce));
-
-    // allocating memory for ONVIF command text and putting it in Body structre
-    // probably should pack all commands in some kind of dictionary
-    // soap_Body.soap_Command = (char *)malloc(onvif_command_GetSystemDateAndTime);
-    // strcpy(soap_Body.soap_Command, onvif_command_GetSystemDateAndTime);
-
-    //standard Arduino network code goes here
     Serial.println(F("Starting ethernet..."));
     if (!Ethernet.begin(mac)) Serial.println(F("failed"));
     else {
         Serial.println(Ethernet.localIP());
         Serial.println(Ethernet.gatewayIP());
     }
+    Udp.begin(localPort);
+
+    // createTime = "2018-11-07T18:15:45.000Z";
+    username = "admin";
+    password = "Supervisor";
+    nonce = getNonce();
+
+    // allocating memory for ONVIF command text and putting it in Body structre
+    // probably should pack all commands in some kind of dictionary
+    // soap_Body.soap_Command = (char *)malloc(onvif_command_GetSystemDateAndTime);
+    // strcpy(soap_Body.soap_Command, onvif_command_GetSystemDateAndTime);
 }
 
 void loop() {
-
+    if (!createTime) {
+        timeClient.update();
+        createTime = getISOFormattedTime(&timeClient);
+        Serial.print("Time: ");
+        Serial.println(createTime);
+        // if(authorization_needed) {
+        soap_Header.soap_HeaderSecurity = (char*)malloc(2); //not sure how it works again; attempt to allocate proper amount of memory makes arduino hang
+        strcpy(soap_Header.soap_HeaderSecurity, calculateHeaderSecurity(username, password, createTime, nonce));
+    }
     Serial.println("bloop");
     xVal = analogRead(sensorPan);     // считывание значения потенциометра вправо/влево в соответствующую переменную
     yVal = analogRead(sensorTilt);    // считывание значения потенциометра вниз/вверх в соответствующую переменную
