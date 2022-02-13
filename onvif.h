@@ -43,7 +43,9 @@ uint8_t *getDigest(byte nonce_t[], char *password, char *created);
 char *calculateHeaderSecurity(char *username, char *password, char *createTime, byte nonce_l[]);
 
 //this function must be rewritten to exclude usage of Ethernet client
+void onvifGetHostname(IPAddress server);
 void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body, char *ProfileToken, char *velocity_x, char *velocity_y);
+void onvifGetSystemDateAndTime(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body);
 
 char* getISOFormattedTime(NTPClient* timeClient);
 
