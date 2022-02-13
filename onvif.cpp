@@ -1,5 +1,6 @@
 // #include "Arduino.h"
 #include <Ethernet.h>
+#include <ArduinoHttpClient.h>
 #include "onvif.h"
 #include <time.h>
 #include "sha1.h"
@@ -105,33 +106,43 @@ char *calculateHeaderSecurity(char *username, char *password, char *createTime, 
 }
 
 void onvifGetHostname(IPAddress server){
-  EthernetClient client;
-  if (client.connect(server, 80)) {
-    // Make a HTTP request:
-    client.print(httpHeaderDeviceService);
-    client.print(httpHeaderStatic);
-    client.println(111);
-    client.println();
-    client.print("<s:Envelope><s:Body><ns0:GetHostname xmlns:ns0=\"http://www.onvif.org/ver10/device/wsdl\"/></s:Body></s:Envelope>");
-    Serial.println("Done sending");
-     int len = client.available();
-       while (len == 0) len = client.available();
-       while (len > 0) {
-         byte buffer[80];
-         if (len > 80) len = 80;
-         client.read(buffer, len);
-         // if (printWebData) {
-           Serial.write(buffer, len); // show in the //Serial monitor (slows some boards)
-         // }
-         // byteCount = byteCount + len;
-         len = client.available();
-       }
-    client.stop();
-  } else {
-    // if you didn't get a connection to the server:
-    Serial.println("connection failed");
-    delay(5);
-  }
+  char* contentType = "application/soap+xml; charset=utf-8";
+  char* postData = "<s:Envelope><s:Body><ns0:GetHostname xmlns:ns0=\"http://www.onvif.org/ver10/device/wsdl\"/></s:Body></s:Envelope>";
+  char serverAddress[] = "192.168.1.70";  // server address
+  int port = 80;
+   // Initialize the Ethernet client library
+  // with the IP address and port of the server
+  // that you want to connect to (port 80 is default for HTTP):
+  EthernetClient eth;
+  HttpClient client = HttpClient(eth, serverAddress, port);
+  client.post("http://192.168.1.70/onvif/device_service", contentType, postData);
+  // read the status code and body of the response
+  int statusCode = client.responseStatusCode();
+  String response = client.responseBody();
+  Serial.print("Status code: ");
+  Serial.println(statusCode);
+  Serial.print("Response: ");
+  Serial.println(response);
+}
+
+void onvifGetSystemDateAndTime(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body) {
+  char* contentType = "application/soap+xml; charset=utf-8";
+  char* postData = "<s:Envelope><s:Body><ns0:GetSystemDateAndTime xmlns:ns0=\"http://www.onvif.org/ver10/device/wsdl\"/></s:Body></s:Envelope>";
+  char serverAddress[] = "192.168.1.70";  // server address
+  int port = 80;
+   // Initialize the Ethernet client library
+  // with the IP address and port of the server
+  // that you want to connect to (port 80 is default for HTTP):
+  EthernetClient eth;
+  HttpClient client = HttpClient(eth, serverAddress, port);
+  client.post("http://192.168.1.70/onvif/device_service", contentType, postData);
+  // read the status code and body of the response
+  int statusCode = client.responseStatusCode();
+  String response = client.responseBody();
+  Serial.print("Status code: ");
+  Serial.println(statusCode);
+  Serial.print("Response: ");
+  Serial.println(response);
 }
 
 void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body, char *ProfileToken, char* velocity_x, char* velocity_y) {
@@ -170,72 +181,6 @@ void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, stru
     client.print(soap_Body->soap_BodyClose);
     client.print(soap_EnvelopeClose);
     Serial.println(millis());	
-    Serial.println("Done sending");
-     int len = client.available();
-       while (len == 0) len = client.available();
-       while (len > 0) {
-         byte buffer[80];
-         if (len > 80) len = 80;
-         client.read(buffer, len);
-         // if (printWebData) {
-           Serial.write(buffer, len); // show in the //Serial monitor (slows some boards)
-         // }
-         // byteCount = byteCount + len;
-         len = client.available();
-       }
-    client.stop();
-    Serial.println(millis());
-  } else {
-    // if you didn't get a connection to the server:
-    Serial.println("connection failed");
-    delay(5);
-  }
-  //Serial.println("Done move");
-  // free(soap_Body.soap_Command);
-  Serial.println(millis());
-}
-
-void onvifGetSystemDateAndTime(IPAddress server, struct soap_Header *soap_Header, struct soap_Body *soap_Body) {
-  Serial.println(millis());  
-  EthernetClient client;
-//   soap_Header.soap_HeaderSecurity = (char*)malloc(2); //not sure how it works again; attempt to allocate proper amount of memory makes arduino hang
-//   strcpy(soap_Header.soap_HeaderSecurity, calculateHeaderSecurity(username, password, createTime, nonce));
-
-   soap_Body->soap_Command = (char *)malloc(onvif_command_GetSystemDateAndTime);
-   strcpy(soap_Body->soap_Command, onvif_command_GetSystemDateAndTime);
-  //Serial.print("connecting to ");
-  //Serial.print(server);
-  //Serial.println("...");
-  //Serial.println(micros()); 
-  if (client.connect(server, 80)) {
-    //Serial.print("connected to ");
-    //Serial.println(client.remoteIP());
-    //Serial.println(micros()); 
-    // Make a HTTP request:
-    client.print(httpHeaderStatic);
-    client.println(strlen(soap_EnvelopeOpen) + getSoapHeaderLength(soap_Header) + strlen(soap_Body->soap_BodyOpen)+ strlen(onvif_command_GetSystemDateAndTime) + strlen(soap_Body->soap_BodyClose) + strlen(soap_EnvelopeClose)); //calculate and send Content-Length of request
-    client.println();
-    Serial.println(millis()); 
-    client.print(soap_EnvelopeOpen);
-    client.print(Serialize_Header(soap_Header));
-    // client.print(soap_Header->soap_HeaderOpen);
-    // client.print(soap_Header->soap_HeaderSecurity);
-    // client.print(soap_Header->soap_HeaderClose);
-    Serial.println(millis());
-    // client.print(//Serialize_Body(soap_Body));
-    client.print(soap_Body->soap_BodyOpen);
-    client.print(onvif_command_GetSystemDateAndTime);
-    // client.print("<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>Profile_1</ProfileToken><Velocity><PanTilt x=\"0.5\" y=\"0\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>");
-//    client.print("<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>");
-//    client.print(ProfileToken);
-//    client.print("</ProfileToken><Velocity><PanTilt x=\"");
-//    client.print(velocity_x);
-//    client.print("\" y=\"");
-//    client.print(velocity_y);
-//    client.print("\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>");
-    client.print(soap_Body->soap_BodyClose);
-    client.print(soap_EnvelopeClose);
-    Serial.println(millis()); 
     Serial.println("Done sending");
      int len = client.available();
        while (len == 0) len = client.available();
