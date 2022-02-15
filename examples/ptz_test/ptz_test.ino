@@ -89,31 +89,3 @@ void loop() {
 //    Serial.println(millis());
     while(true) delay(1);
 }
-
-// void printHash(uint8_t *hash) {
-//     int i;
-//     for (i = 0; i < 20; i++) {
-//         Serial.print("0123456789abcdef"[hash[i] >> 4]);
-//         Serial.print("0123456789abcdef"[hash[i] & 0xf]);
-//     }
-//     Serial.println();
-// }
-//
-// void printNonce(byte nonce[]) {
-//     int i;
-//     for (i = 0; i < 20; i++) {
-//         Serial.print(nonce[i], HEX);
-//     }
-//     Serial.println();
-// }
-
-byte *getNonce() {
-    byte random_num;
-    static byte random_arr[20];
-    int i = 0;
-    for (i = 0; i < 20; i++) {
-        random_num = random(255);
-        random_arr[i] = random_num;
-    }
-    return random_arr;
-}

@@ -59,11 +59,40 @@ char *Serialize_Body (struct soap_Body *soap_Body) {
   return soap_BodyWhole;
 }
 
+ void printHash(uint8_t *hash) {
+     int i;
+     for (i = 0; i < 20; i++) {
+         Serial.print("0123456789abcdef"[hash[i] >> 4]);
+         Serial.print("0123456789abcdef"[hash[i] & 0xf]);
+     }
+     Serial.println();
+ }
+
+ void printNonce(byte nonce[]) {
+     for (int i = 0; i < 22; i++) {
+         Serial.print(nonce[i], HEX);
+     }
+     Serial.println();
+ }
+
+byte *getNonce() {
+    static byte random_arr[22];
+    randomSeed(analogRead(A0));
+    for (int i = 0; i < 22; i++) {
+        random_arr[i] = random(255);
+        Serial.print(random_arr[i], HEX);
+    }
+    Serial.println();
+    return random_arr;
+}
+
 uint8_t *getDigest(byte nonce_t[], char *password, char *created) {
-  char chars[20];
+//  Digest = B64ENCODE( SHA1( B64DECODE( Nonce ) + Date + Password ) )
+  printNonce(nonce_t);
+  char chars[22];
   char *conc;
-  memcpy(chars, nonce_t, 20);
-  chars[20] = '\0';
+  memcpy(chars, nonce_t, 22);
+  chars[22] = '\0';
   Sha1.init();
   conc = (char*)malloc(strlen(chars) + strlen(password) + strlen(created));
   strcpy(conc, chars);
@@ -86,11 +115,11 @@ char *calculateHeaderSecurity(char *username, char *password, char *createTime, 
   char *onvif_security4 = "</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">";
   char *onvif_security5 = "</Created></UsernameToken></Security>";
 
-  base64_digest = (unsigned char*)malloc(encode_base64_length(20));
+  base64_digest = (unsigned char*)malloc(encode_base64_length(22));
   base64_nonce = (unsigned char*)malloc(encode_base64_length(20));
   hash = getDigest(nonce_l, password, createTime);  
   encode_base64(hash, 20, base64_digest);
-  encode_base64(nonce_l, 20, base64_nonce);
+  encode_base64(nonce_l, 22, base64_nonce);
 
   securityHeader = (char*)malloc(strlen(onvif_security1) + strlen(username) + strlen(onvif_security2) + strlen(base64_digest) + strlen(onvif_security3) + strlen(base64_nonce) + strlen(onvif_security4) + strlen(createTime) + strlen(onvif_security5));
   strcpy(securityHeader, onvif_security1);
@@ -151,9 +180,11 @@ void onvifContinuousMove(IPAddress server, struct soap_Header *soap_Header, stru
   // with the IP address and port of the server
   // that you want to connect to (port 80 is default for HTTP):
   EthernetClient eth;
-  char* soapHeader = "<s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>admin</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">K2IcvAJ0Mq/4Rv9jYyrKBsgiJ1c=</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">TEbs4ad+2UWRiWKbPRxRyboEAAAAAA==</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">2022-02-11T22:32:40.593Z</Created></UsernameToken></Security></s:Header>";
-  sprintf(postData, "%s%s%s<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><Velocity><PanTilt x=\"%s\" y=\"%s\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>%s%s", \
-          soap_EnvelopeOpen, soapHeader, soap_Body->soap_BodyOpen, ProfileToken, velocity_x, velocity_y, soap_Body->soap_BodyClose, soap_EnvelopeClose);  
+  Serial.println(soap_Header->soap_HeaderSecurity);
+//  char* soapHeader = "<s:Header><Security s:mustUnderstand=\"1\" xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd\"><UsernameToken><Username>admin</Username><Password Type=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-username-token-profile-1.0#PasswordDigest\">K2IcvAJ0Mq/4Rv9jYyrKBsgiJ1c=</Password><Nonce EncodingType=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#Base64Binary\">TEbs4ad+2UWRiWKbPRxRyboEAAAAAA==</Nonce><Created xmlns=\"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd\">2022-02-11T22:32:40.593Z</Created></UsernameToken></Security></s:Header>";
+  sprintf(postData, "<s:Envelope xmlns:s=\"http://www.w3.org/2003/05/soap-envelope\"><s:Header>%s</s:Header>%s<ContinuousMove xmlns=\"http://www.onvif.org/ver20/ptz/wsdl\"><ProfileToken>%s</ProfileToken><Velocity><PanTilt x=\"%s\" y=\"%s\" xmlns=\"http://www.onvif.org/ver10/schema\"/></Velocity></ContinuousMove>%s%s", \
+          soap_Header->soap_HeaderSecurity, soap_Body->soap_BodyOpen, ProfileToken, velocity_x, velocity_y, soap_Body->soap_BodyClose, soap_EnvelopeClose);  
+  Serial.println(postData);
   HttpClient client = HttpClient(eth, server, port);
   client.post("/onvif/ptz_service", contentType, postData);
   // read the status code and body of the response
